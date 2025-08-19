@@ -12,7 +12,7 @@
 (function () {
   'use strict';
 
-  // Fahrzeugtypen die NICHT angezeigt werden sollen werden hier Eintragen. Zwischen diese [ ] klammern (die IDs findet man in der API)
+  // Fahrzeugtypen die NICHT angezeigt werden sollen werden hier Eintragen. Zwischen diese [z.b. 1, 19, 40 usw. ] klammern (die IDs findet man in der API)
   const ignoredVehicleTypeIds = [];
 
 
@@ -146,3 +146,4 @@
     }
   });
 })();
+
