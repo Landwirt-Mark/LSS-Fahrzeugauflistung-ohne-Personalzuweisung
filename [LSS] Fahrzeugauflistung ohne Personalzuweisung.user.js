@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         [LSS] Fahrzeugauflistung ohne Personalzuweisung
 // @namespace    https://leitstellenspiel.de
-// @version      1.1
-// @description  Listet alle fahrzeuge ohne Personal an.
+// @version      1.2
+// @description  Listet alle Fahrzeuge ohne Personal an. Konfigurierbare Fahrzeugtypen im Overlay (Blacklist/Whitelist-Modus). Ohne ID-Ausgabefeld.
 // @author       Paul
 // @match        https://www.leitstellenspiel.de/
 // @grant        none
@@ -12,21 +12,42 @@
 (function () {
   'use strict';
 
-  // Fahrzeugtypen die NICHT angezeigt werden sollen werden hier Eintragen. Zwischen diese [z.b. 1, 19, 40 usw. ] klammern (die IDs findet man in der API)
-  const ignoredVehicleTypeIds = [];
+  // ---- Einstellungen laden/speichern ----
+  function loadIds() {
+    const saved = localStorage.getItem('vehicleTypeIds');
+    return saved ? JSON.parse(saved) : [];
+  }
 
+  function saveIds(ids) {
+    localStorage.setItem('vehicleTypeIds', JSON.stringify(ids));
+  }
 
+  function loadMode() {
+    return localStorage.getItem('filterMode') || 'ignore'; // "ignore" oder "only"
+  }
+
+  function saveMode(mode) {
+    localStorage.setItem('filterMode', mode);
+  }
+
+  let vehicleTypeIds = loadIds();
+  let filterMode = loadMode();
   let trailerTypeIds = [];
 
   async function fetchTrailerTypes() {
-    const res = await fetch('https://api.lss-manager.de/de_DE/vehicles');
-    const data = await res.json();
-    trailerTypeIds = Object.entries(data)
-      .filter(([, val]) => val.isTrailer)
-      .map(([id]) => parseInt(id));
+    try {
+      const res = await fetch('https://api.lss-manager.de/de_DE/vehicles');
+      const data = await res.json();
+      trailerTypeIds = Object.entries(data)
+        .filter(([, val]) => val.isTrailer)
+        .map(([id]) => parseInt(id));
+    } catch (e) {
+      console.warn("Trailer-Daten nicht geladen:", e);
+      trailerTypeIds = [];
+    }
   }
 
-  // Button unten rechts
+  // ---- Button unten rechts ----
   const toggleButton = document.createElement('button');
   toggleButton.textContent = 'Fahrzeuge ohne Personal';
   Object.assign(toggleButton.style, {
@@ -49,14 +70,14 @@
   toggleButton.onmouseleave = () => toggleButton.style.backgroundColor = '#007bff';
   document.body.appendChild(toggleButton);
 
-  // Popup-Fenster
+  // ---- Popup ----
   const popup = document.createElement('div');
   Object.assign(popup.style, {
     position: 'fixed',
-    bottom: '80px',
-    right: '20px',
+    bottom: '10px',
+    right: '10px',
     width: '400px',
-    maxHeight: '550px',
+    maxHeight: '500px',
     overflowY: 'auto',
     backgroundColor: '#fdfdfd',
     border: '1px solid #ccc',
@@ -77,49 +98,80 @@
       <button id="close-popup" style="background:none; border:none; color:white; font-size:18px; cursor:pointer;">✖</button>
     </div>
     <div style="padding:12px;">
-      <button id="copy-ids" class="btn btn-sm btn-primary" style="margin-bottom: 10px; padding:5px 12px; border-radius:5px; background:#28a745; border:none; color:white; font-weight:bold; cursor:pointer;">📋 IDs kopieren</button>
-      <p id="vehicle-count" style="margin: 5px 0; font-weight:bold; color:#b00;"></p>
-      <textarea id="vehicle-id-output" rows="4" readonly
-                style="width:100%; margin-bottom:10px; padding:8px; border-radius:5px; border:1px solid #ccc; font-family:monospace;"></textarea>
+      <p id="vehicle-count" style="margin: 5px 0; font-weight:bold; color:red;"></p>
+
+      <label for="vehicle-ids" style="font-weight:bold; display:block; margin-top:10px; color:black;">Fahrzeugtypen-IDs (z.b. 2,3,50)</label>
+      <textarea id="vehicle-ids" rows="2"
+                style="width:100%; margin:6px 0; padding:6px; border-radius:5px; border:1px solid #ccc; font-family:monospace;"></textarea>
+
+      <label for="filter-mode" style="font-weight:bold; display:block; margin-top:8px; color:black;">Filtermodus</label>
+      <select id="filter-mode" style="width:100%; margin:6px 0; padding:6px; border-radius:5px; border:1px solid #ccc;">
+        <option value="ignore">❌ Diese IDs ignorieren</option>
+        <option value="only">✅ Nur diese IDs anzeigen</option>
+      </select>
+
+      <button id="save-settings" style="padding:5px 12px; border-radius:5px; background:#58FF42; border:none; color:black; font-weight:bold; cursor:pointer;">Speichern</button>
+
+      <hr style="margin:15px 0;">
       <ul id="vehicle-list" style="padding-left:18px; margin:0; list-style-type:disc; line-height:1.5;"></ul>
     </div>
   `;
 
-  // Toggle öffnen / schließen
+  // ---- Events ----
   toggleButton.addEventListener('click', async () => {
-    popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
-    if (popup.style.display === 'block') {
-      await fetchTrailerTypes();
-      await loadVehicles();
-    }
+      popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+      if (popup.style.display === 'block') {
+          toggleButton.style.display = 'none';   // Button ausblenden
+          document.getElementById('vehicle-ids').value = vehicleTypeIds.join(',');
+          document.getElementById('filter-mode').value = filterMode;
+          await fetchTrailerTypes();
+          await loadVehicles();
+      } else {
+          toggleButton.style.display = 'block';  // Button wieder einblenden
+      }
   });
 
   document.getElementById('close-popup').addEventListener('click', () => {
     popup.style.display = 'none';
+    toggleButton.style.display = 'block'; // Button zurückholen
   });
 
-  // Fahrzeuge laden und filtern
+  document.getElementById('save-settings').addEventListener('click', () => {
+    const raw = document.getElementById('vehicle-ids').value;
+    vehicleTypeIds = raw.split(',').map(x => parseInt(x.trim())).filter(x => !isNaN(x));
+    filterMode = document.getElementById('filter-mode').value;
+    saveIds(vehicleTypeIds);
+    saveMode(filterMode);
+    loadVehicles();
+  });
+
+  // ---- Fahrzeuge laden ----
   async function loadVehicles() {
     const list = document.getElementById('vehicle-list');
-    const idField = document.getElementById('vehicle-id-output');
     const countField = document.getElementById('vehicle-count');
     list.innerHTML = '';
-    idField.value = '';
     countField.textContent = 'Fahrzeuge werden geladen!';
 
     try {
       const res = await fetch('/api/vehicles');
       const vehicles = await res.json();
 
-      const filtered = vehicles.filter(v =>
-        (!v.assigned_personnel_count || v.assigned_personnel_count === 0) &&
-        !ignoredVehicleTypeIds.includes(v.vehicle_type) &&
-        !trailerTypeIds.includes(v.vehicle_type)
-      );
+      const filtered = vehicles.filter(v => {
+        const noPersonal = !v.assigned_personnel_count || v.assigned_personnel_count === 0;
+        const isTrailer = trailerTypeIds.includes(v.vehicle_type);
+        if (!noPersonal || isTrailer) return false;
+
+        if (filterMode === 'ignore') {
+          return !vehicleTypeIds.includes(v.vehicle_type);
+        } else if (filterMode === 'only') {
+          return vehicleTypeIds.includes(v.vehicle_type);
+        }
+        return true;
+      });
 
       countField.textContent = ` ${filtered.length} Fahrzeuge ohne Personal gefunden.`;
-      idField.value = filtered.map(v => v.id).join(',');
 
+      const fragment = document.createDocumentFragment();
       filtered.forEach(v => {
         const li = document.createElement('li');
         const link = document.createElement('a');
@@ -127,23 +179,13 @@
         link.target = '_blank';
         link.textContent = `${v.caption} (ID: ${v.id})`;
         li.appendChild(link);
-        list.appendChild(li);
+        fragment.appendChild(li);
       });
+      list.appendChild(fragment);
 
     } catch (e) {
       countField.textContent = '❌ Fehler beim Laden der Fahrzeugdaten.';
       console.error(e);
     }
   }
-
-  // Kopieren
-  popup.addEventListener('click', e => {
-    if (e.target && e.target.id === 'copy-ids') {
-      const ids = document.getElementById('vehicle-id-output').value;
-      navigator.clipboard.writeText(ids).then(() => {
-        alert('Fahrzeug-IDs wurden in die Zwischenablage kopiert.');
-      });
-    }
-  });
 })();
-
