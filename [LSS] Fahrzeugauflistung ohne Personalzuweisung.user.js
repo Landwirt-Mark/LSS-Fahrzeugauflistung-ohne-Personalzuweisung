@@ -2,7 +2,7 @@
 // @name         [LSS] Fahrzeugauflistung ohne Personalzuweisung
 // @namespace    https://leitstellenspiel.de
 // @version      1.2
-// @description  Listet alle Fahrzeuge ohne Personal an. Konfigurierbare Fahrzeugtypen im Overlay (Blacklist/Whitelist-Modus). Ohne ID-Ausgabefeld.
+// @description  Listet alle Fahrzeuge ohne Personal an. Konfigurierbare Fahrzeugtypen im Overlay.
 // @author       Paul
 // @match        https://www.leitstellenspiel.de/
 // @grant        none
