@@ -47,6 +47,47 @@
     }
   }
 
+  // ---- Popup-Hinweis (Toast) ----
+  function showMessage(msg, color = '#28a745') {
+    const note = document.createElement('div');
+    Object.assign(note.style, {
+      position: 'fixed',
+      bottom: '90px',
+      right: '30px',
+      background: color,
+      color: 'white',
+      padding: '8px 14px',
+      borderRadius: '6px',
+      fontWeight: 'bold',
+      zIndex: '10001',
+      boxShadow: '0 4px 8px rgba(0,0,0,0.3)',
+      opacity: '0',
+      transition: 'opacity 0.3s ease'
+    });
+    note.textContent = msg;
+    document.body.appendChild(note);
+
+    setTimeout(() => note.style.opacity = '1', 50);
+    setTimeout(() => {
+      note.style.opacity = '0';
+      setTimeout(() => note.remove(), 300);
+    }, 2500);
+  }
+
+  // ---- Fahrzeug-IDs kopieren ----
+  function copyVehicleIds() {
+    const listItems = document.querySelectorAll('#vehicle-list li');
+    const ids = Array.from(listItems).map(li => {
+      const text = li.textContent;
+      const match = text.match(/\(ID: (\d+)\)/);
+      return match ? match[1] : null;
+    }).filter(id => id !== null);
+
+    navigator.clipboard.writeText(ids.join(',')).then(() => {
+      showMessage('✅ Fahrzeug-IDs in die Zwischenablage kopiert!');
+    });
+  }
+
   // ---- Button unten rechts ----
   const toggleButton = document.createElement('button');
   toggleButton.textContent = 'Fahrzeuge ohne Personal';
@@ -110,7 +151,9 @@
         <option value="only">✅ Nur diese IDs anzeigen</option>
       </select>
 
-      <button id="save-settings" style="padding:5px 12px; border-radius:5px; background:#58FF42; border:none; color:black; font-weight:bold; cursor:pointer;">Speichern</button>
+      <button id="save-settings" style="padding:5px 12px; border-radius:5px; background:#28a745; border:none; color:white; font-weight:bold; cursor:pointer;">Speichern</button>
+
+      <button id="copy-ids" style="margin-top:10px; padding:5px 12px; border-radius:5px; background:#28a745; border:none; color:white; font-weight:bold; cursor:pointer;">IDs kopieren</button>
 
       <hr style="margin:15px 0;">
       <ul id="vehicle-list" style="padding-left:18px; margin:0; list-style-type:disc; line-height:1.5;"></ul>
@@ -119,21 +162,19 @@
 
   // ---- Events ----
   toggleButton.addEventListener('click', async () => {
-      popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
-      if (popup.style.display === 'block') {
-          toggleButton.style.display = 'none';   // Button ausblenden
-          document.getElementById('vehicle-ids').value = vehicleTypeIds.join(',');
-          document.getElementById('filter-mode').value = filterMode;
-          await fetchTrailerTypes();
-          await loadVehicles();
-      } else {
-          toggleButton.style.display = 'block';  // Button wieder einblenden
-      }
+    popup.style.display = popup.style.display === 'none' ? 'block' : 'none';
+    toggleButton.style.display = popup.style.display === 'block' ? 'none' : 'block';
+    if (popup.style.display === 'block') {
+      document.getElementById('vehicle-ids').value = vehicleTypeIds.join(',');
+      document.getElementById('filter-mode').value = filterMode;
+      await fetchTrailerTypes();
+      await loadVehicles();
+    }
   });
 
   document.getElementById('close-popup').addEventListener('click', () => {
     popup.style.display = 'none';
-    toggleButton.style.display = 'block'; // Button zurückholen
+    toggleButton.style.display = 'block';
   });
 
   document.getElementById('save-settings').addEventListener('click', () => {
@@ -144,6 +185,8 @@
     saveMode(filterMode);
     loadVehicles();
   });
+
+  document.getElementById('copy-ids').addEventListener('click', copyVehicleIds);
 
   // ---- Fahrzeuge laden ----
   async function loadVehicles() {
